@@ -49,6 +49,14 @@ export default function App() {
                 </Guard>
               }
             />
+            <Route
+              path="movements/:id/edit"
+              element={
+                <Guard roles={PREPARERS}>
+                  <NewMovement />
+                </Guard>
+              }
+            />
             <Route path="movements/:id" element={<MovementDetail />} />
             <Route path="movements/:id/delivery-note" element={<DeliveryNote />} />
             <Route path="movements/:id/gate-pass" element={<GatePass />} />

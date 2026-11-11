@@ -14,7 +14,7 @@ export default function GatePass() {
   useEffect(() => {
     supabase
       .from('gate_passes')
-      .select('number, code, status, issued_at, used_at, movement:movements(ref, type, vehicle_reg, driver_name, counterparty, lines:movement_lines(qty, item:items(id, sku, name, unit)), serials:movement_serials(item_id, serial))')
+      .select('number, code, status, issued_at, used_at, movement:movements(ref, type, vehicle_reg, driver_name, counterparty, delivery_address, lines:movement_lines(qty, item:items(id, sku, name, unit)), serials:movement_serials(item_id, serial))')
       .eq('movement_id', id)
       .maybeSingle()
       .then(async ({ data, error }) => {
@@ -47,6 +47,7 @@ export default function GatePass() {
           <div>
             <p><strong>{TYPE[mv.type]}</strong> · {mv.ref}</p>
             {mv.counterparty && <p>{mv.counterparty}</p>}
+            {mv.delivery_address && <p>Deliver to: {mv.delivery_address}</p>}
             {mv.vehicle_reg && <p>Vehicle {mv.vehicle_reg}</p>}
             {mv.driver_name && <p>Driver {mv.driver_name}</p>}
           </div>

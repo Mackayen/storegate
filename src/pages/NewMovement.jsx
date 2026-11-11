@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../supabase.js'
 import ScanInput from '../components/ScanInput.jsx'
 import { fmtQty } from '../fmt.js'
@@ -33,6 +33,8 @@ function SerialPanel({ line, leaving, onAdd, onRemove }) {
 
 export default function NewMovement() {
   const nav = useNavigate()
+  const { id: editId } = useParams() // present when an unsubmitted draft is being changed
+  const skipReset = useRef(false)
   const [items, setItems] = useState([])
   const [rooms, setRooms] = useState([])
   const [avail, setAvail] = useState({})
@@ -41,6 +43,7 @@ export default function NewMovement() {
   const [fromId, setFromId] = useState('')
   const [toId, setToId] = useState('')
   const [counterparty, setCounterparty] = useState('')
+  const [address, setAddress] = useState('')
   const [vehicle, setVehicle] = useState('')
   const [driver, setDriver] = useState('')
   const [notes, setNotes] = useState('')
@@ -62,6 +65,37 @@ export default function NewMovement() {
       }
     })
   }, [])
+
+  // Editing a draft: load it once the item list is here.
+  useEffect(() => {
+    if (!editId || !items.length) return
+    supabase
+      .from('movements')
+      .select('type, status, from_storeroom_id, to_storeroom_id, counterparty, delivery_address, vehicle_reg, driver_name, notes, lines:movement_lines(qty, item_id), serials:movement_serials(item_id, serial)')
+      .eq('id', editId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error || !data) return setErr(error?.message || 'Movement not found.')
+        if (data.status !== 'draft') return setErr('Items can only be changed while the movement is a draft.')
+        skipReset.current = true
+        setType(data.type)
+        setFromId(data.from_storeroom_id || '')
+        setToId(data.to_storeroom_id || '')
+        setCounterparty(data.counterparty || '')
+        setAddress(data.delivery_address || '')
+        setVehicle(data.vehicle_reg || '')
+        setDriver(data.driver_name || '')
+        setNotes(data.notes || '')
+        setLines(
+          data.lines
+            .map((l) => {
+              const item = items.find((i) => i.id === l.item_id)
+              return item && { item, qty: String(l.qty), serials: data.serials.filter((x) => x.item_id === l.item_id).map((x) => x.serial).sort() }
+            })
+            .filter(Boolean),
+        )
+      })
+  }, [editId, items])
 
   // Show what is available in the source storeroom so the storeman sees problems early.
   useEffect(() => {
@@ -88,6 +122,10 @@ export default function NewMovement() {
   // Units leaving a storeroom are always chosen by serial number, so their serials belong to one
   // storeroom and one movement type. When either changes, the serials are cleared.
   useEffect(() => {
+    if (skipReset.current) {
+      skipReset.current = false
+      return
+    }
     setLines((prev) => prev.map((l) => (l.item.tracks_serials ? { ...l, serials: [], qty: type === 'receive' ? l.qty : '0' } : l)))
   }, [type, fromId])
 
@@ -173,6 +211,19 @@ export default function NewMovement() {
     if (type !== 'receive' && !fromId) return setErr('Choose the source storeroom.')
     if (type !== 'dispatch' && !toId) return setErr('Choose the destination storeroom.')
     setBusy(true)
+    if (editId) {
+      const a = await supabase.rpc('edit_draft_items', { p_id: editId, p_lines: payload })
+      if (a.error) {
+        setBusy(false)
+        return setErr(a.error.message)
+      }
+      const b = await supabase.rpc('update_movement_details', {
+        p_id: editId, p_counterparty: counterparty, p_address: address, p_vehicle: vehicle, p_driver: driver, p_notes: notes,
+      })
+      setBusy(false)
+      if (b.error) return setErr(b.error.message)
+      return nav(`/movements/${editId}`)
+    }
     const { data, error } = await supabase.rpc('create_movement', {
       p_type: type,
       p_from: type === 'receive' ? null : fromId,
@@ -182,6 +233,7 @@ export default function NewMovement() {
       p_driver: driver,
       p_notes: notes,
       p_lines: payload,
+      p_address: address,
     })
     setBusy(false)
     if (error) return setErr(error.message)
@@ -190,13 +242,13 @@ export default function NewMovement() {
 
   return (
     <>
-      <h1>New movement</h1>
+      <h1>{editId ? 'Edit draft' : 'New movement'}</h1>
       <form onSubmit={save}>
         <div className="card">
           <div className="grid2">
             <div>
               <label htmlFor="type">Type</label>
-              <select id="type" value={type} onChange={(e) => setType(e.target.value)}>
+              <select id="type" value={type} disabled={!!editId} onChange={(e) => setType(e.target.value)}>
                 <option value="receive">Receive stock in</option>
                 <option value="dispatch">Dispatch stock out</option>
                 <option value="transfer">Transfer between storerooms</option>
@@ -205,7 +257,7 @@ export default function NewMovement() {
             {type !== 'receive' && (
               <div>
                 <label htmlFor="from">From storeroom</label>
-                <select id="from" value={fromId} onChange={(e) => setFromId(e.target.value)}>
+                <select id="from" value={fromId} disabled={!!editId} onChange={(e) => setFromId(e.target.value)}>
                   <option value="">Choose…</option>
                   {rooms.map((r) => <option key={r.id} value={r.id}>{r.code} · {r.name}</option>)}
                 </select>
@@ -214,7 +266,7 @@ export default function NewMovement() {
             {type !== 'dispatch' && (
               <div>
                 <label htmlFor="to">To storeroom</label>
-                <select id="to" value={toId} onChange={(e) => setToId(e.target.value)}>
+                <select id="to" value={toId} disabled={!!editId} onChange={(e) => setToId(e.target.value)}>
                   <option value="">Choose…</option>
                   {rooms.map((r) => <option key={r.id} value={r.id}>{r.code} · {r.name}</option>)}
                 </select>
@@ -224,6 +276,12 @@ export default function NewMovement() {
               <label htmlFor="cp">{type === 'receive' ? 'Supplier' : type === 'dispatch' ? 'Customer or destination' : 'Reference'}</label>
               <input id="cp" value={counterparty} onChange={(e) => setCounterparty(e.target.value)} maxLength={200} />
             </div>
+            {type !== 'receive' && (
+              <div>
+                <label htmlFor="addr">Delivery address</label>
+                <input id="addr" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={500} />
+              </div>
+            )}
             <div>
               <label htmlFor="veh">Vehicle registration</label>
               <input id="veh" value={vehicle} onChange={(e) => setVehicle(e.target.value)} maxLength={30} />
@@ -298,7 +356,7 @@ export default function NewMovement() {
         </div>
 
         {err && <p className="error">{err}</p>}
-        <button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save as draft'}</button>
+        <button type="submit" disabled={busy}>{busy ? 'Saving…' : editId ? 'Save changes' : 'Save as draft'}</button>
         <p className="muted">After saving you review the draft, then submit it with your PIN. That creates the delivery note and starts sign off.</p>
       </form>
     </>

@@ -52,6 +52,8 @@ export default function Gate() {
         <div className="card">
           <p><strong>{r.pass_number}</strong> · {TYPE[r.type]} · {r.movement_ref}</p>
           {r.counterparty && <p>{r.counterparty}</p>}
+          {r.delivery_address && <p>Deliver to: {r.delivery_address}</p>}
+          {r.edited && <p className="muted">Details were amended after the note was issued. This is the current version.</p>}
           {r.vehicle_reg && <p>Vehicle {r.vehicle_reg}</p>}
           {r.driver_name && <p>Driver {r.driver_name}</p>}
           <div className="tablewrap">

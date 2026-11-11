@@ -11,6 +11,7 @@ Stock receiving and dispatch for storerooms, on a Supabase backend. Every moveme
 - Notifications appear in the app straight away and are also emailed.
 - Works as an installable web app on phones and laptops. USB barcode scanners work because they type into the scan field and press Enter. Camera scanning was removed for now.
 - Items can be marked as serial numbered. Receive them with serial numbers, or add the serial numbers later from the Search page. Every unit that is dispatched or transferred must have its serial number scanned, and those units leave stock.
+- Delivery notes have a delivery address. Details (supplier or customer, delivery address, vehicle, driver, notes) can be edited by admins, storemen, dispatch managers and procurement at any stage until the movement is rejected or cancelled. Each change is recorded with who made it, and shows under Amendments on the note. The gate check always shows the current details. Items, quantities and serial numbers can only be changed while the movement is a draft (Edit items). After submit they are signed and locked, so to change them reject or cancel and start again.
 - Search page: stock by name, SKU, barcode, serial number, note or storeroom, with filters for working, not working, written off and dispatched units. The search runs in the database with bound parameters.
 - Storemen and admins can flag a unit as not working (red, with a note), add notes, write a unit or a quantity off with a reason, and add a replacement back into the same pile. Everything stays in the unit's history. The Stock page shows how many are not working.
 
@@ -21,7 +22,7 @@ admin, storeman, dispatch manager, procurement, security (the guard), viewer. St
 ## Set up Supabase
 
 1. Create a project at supabase.com.
-2. Open the SQL editor and run the five files in `supabase/migrations` in order.
+2. Open the SQL editor and run the six files in `supabase/migrations` in order.
 3. Authentication > Sign In / Providers: turn off "Allow new users to sign up". Turn on "Confirm email". Set a minimum password length of 12 or more.
 4. Create the first user under Authentication > Users > Add user. Then make that user the admin by running this with their email:
 
@@ -73,7 +74,7 @@ Supabase free projects pause after a week with no activity and have no automatic
 
 ## Tested
 
-The database tests in `tests/` pass 204 of 204 against Postgres 16 (78 flow and security, 126 serial numbers, search, write offs and replacements). The built app was checked in a browser with a mocked backend for login redirect, the guard screen and the role guards. It has not yet been run against a live Supabase project, so do a full receive, dispatch and gate scan with test accounts before real use.
+The database tests in `tests/` pass 257 of 257 against Postgres 16 (78 flow and security, 126 serial numbers, search, write offs and replacements, 53 delivery note edits). The built app was checked in a browser with a mocked backend for login redirect, the guard screen and the role guards. It has not yet been run against a live Supabase project, so do a full receive, dispatch and gate scan with test accounts before real use.
 
 ## Decisions still open
 
